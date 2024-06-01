@@ -17,7 +17,7 @@ COPY . .
 RUN npm run build
 
 # Generate Prisma Client
-RUN npx prisma generate
+RUN npx prisma generate --schema=/usr/src/app/prisma/schema.prisma
 
 
 # Start the server using the production build

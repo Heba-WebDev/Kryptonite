@@ -19,11 +19,21 @@ model User {
   api_key String? @unique @default("")
   is_verified Boolean @default(false)
   files Files[]
+  otp     Otp[]
 }
 
 model Files {
   id    String @id @default(uuid())
   url   String
+  user_id String
+  user      User @relation(fields: [user_id], references: [id])
+}
+
+model Otp {
+  id    String @id @default(uuid())
+  code  String
+  created_at  DateTime  @default(now())
+  expires_at  DateTime
   user_id String
   user      User @relation(fields: [user_id], references: [id])
 }

@@ -1,27 +1,18 @@
-version: '3.8'
+version: '3'
 
 services:
-  server:
-    build:
-      context: .
-    depends_on:
-      - db
-    environment:
-      NODE_ENV: production
-    ports:
-      - '3000:3000'
-
-  db:
-    image: postgres
+  krypt-db:
+    image: postgres:15.3
+    container_name: krypt-db
     restart: always
-    container_name: kryptdb
-    environment:
-      POSTGRES_PASSWORD: pass123
-      DATABASE_URL: postgresql://postgres:pass123@kryptdb:5432
     ports:
-      - '5433:5432'
+      - 5433:5432
+    environment:
+      POSTGRES_DB: mydb
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: pass123
     volumes:
-      - kryptvol:/var/lib/postgresql/data
+      - krypt-db:/var/lib/postgresql/data
 
 volumes:
-  kryptvol:
+  krypt-db:
