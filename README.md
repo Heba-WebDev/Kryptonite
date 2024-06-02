@@ -26,13 +26,15 @@ The Kryptonite App API allows users to upload and manage image files using API k
 3. Access images via the appropriate endpoints.
 
 
-## Languages & Technologies 
+## Languages & Technologies
 
 NestJs - TypeScript - Prisma (Postgresql) - Nodemailer - Swagger
 
 ## Documentation of endpoints
 
-To have an overview of the current endpoints please browser to YOUR_BASE_URL/api.
+[Documentation](https://docs.google.com/document/d/1wfnIWoE5EZvxNmfzmqlJOSyvQ6NdL9OC3KUeQm8uR2I/edit?usp=sharing)
+
+To have an overview of the current endpoints within the app, please browser to YOUR_BASE_URL/api.
 
 
 ## Installation
