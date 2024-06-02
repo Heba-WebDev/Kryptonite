@@ -4,7 +4,7 @@ import {
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { PrismaService } from 'src/prisma/prisma.service';
+import { PrismaService } from '../prisma/prisma.service';
 import { createTransport } from 'nodemailer';
 import { EmailUserDto } from './dto/email.user.dto';
 import { VerifyOtpDto } from './dto/otp.user.dto';
