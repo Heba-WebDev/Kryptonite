@@ -2,7 +2,9 @@ import { Body, Controller, Post, Delete } from '@nestjs/common';
 import { EmailUserDto } from './dto/email.user.dto';
 import { UsersService } from './users.service';
 import { VerifyOtpDto } from './dto/otp.user.dto';
+import { ApiTags } from '@nestjs/swagger';
 
+@ApiTags('users')
 @Controller('users')
 export class UsersController {
   constructor(private readonly authService: UsersService) {}
