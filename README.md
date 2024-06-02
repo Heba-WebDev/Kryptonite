@@ -28,7 +28,11 @@ The Kryptonite App API allows users to upload and manage image files using API k
 
 ## Languages & Technologies 
 
-NestJs - TypeScript - Prisma (Postgresql) 
+NestJs - TypeScript - Prisma (Postgresql) - Nodemailer - Swagger
+
+## Documentation of endpoints
+
+To have an overview of the current endpoints please browser to YOUR_BASE_URL/api.
 
 
 ## Installation
@@ -47,17 +51,13 @@ NestJs - TypeScript - Prisma (Postgresql)
      - Install Docker on macOS
      - Install Docker on Windows
 
-2. **Building and Running the Docker Containers**
+2. **Building and Running the Docker Container**
    - Open a terminal and navigate to the root directory of your project.
-   - Build the Docker images using the provided Dockerfile:
-     ```bash
-     docker build -t my-kryptonite-app .
-     ```
-   - Start the containers using Docker Compose:
+   - Start the container using Docker Compose:
      ```bash
      docker-compose up -d
      ```
-   - Your Kryptonite App should now be accessible at `http://localhost:3000`.
+   - Your Kryptonite App should now be have access to the postgres database running in the container.
 
 3. **Stopping and Cleaning Up**
    - To stop the containers, run:
