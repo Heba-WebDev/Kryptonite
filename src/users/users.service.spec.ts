@@ -79,7 +79,7 @@ describe('UsersService', () => {
     });
   });
 
-  describe('genrate OTP code', () => {
+  describe('generate OTP code', () => {
     it('should return a 6-digit code', async () => {
       const result = await userService.generate_otp(userMock.id.toString());
       expect(typeof result).toBe('string');
