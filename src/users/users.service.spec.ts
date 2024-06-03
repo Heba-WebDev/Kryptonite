@@ -218,4 +218,50 @@ describe('UsersService', () => {
       );
     });
   });
+
+  describe('delete api key', () => {
+    it('should delete the user current api key', async () => {
+      const user = {
+        id: userMock.id,
+        email: userMock.email,
+        api_key: 'xvsgwgw=ewgfwWavStwa?12f',
+        is_verified: true,
+      };
+      prismaMock.user.findFirst.mockResolvedValue(user);
+      const result = await userService.delete_api_key({ email: user.email });
+      expect(result).toEqual('Api key succssfully deleted');
+    });
+
+    it('should throw an error if the user does not have a valid api key', async () => {
+      const user = {
+        id: userMock.id,
+        email: userMock.email,
+        api_key: '',
+        is_verified: false,
+      };
+      prismaMock.user.findFirst.mockResolvedValue(user);
+      await expect(
+        userService.delete_api_key({
+          email: userMock.email,
+        }),
+      ).rejects.toThrow(
+        new UnauthorizedException('Unauthorized to perform this action'),
+      );
+    });
+
+    it('should throw an error if no user with the given email was found', async () => {
+      const user = {
+        id: userMock.id,
+        email: userMock.email,
+        api_key: 'gxJxwfwXZgvd=1425gs',
+        is_verified: true,
+      };
+      prismaMock.user.findFirst.mockResolvedValue(null);
+      await expect(
+        userService.generate_api_key({ email: user.email }),
+      ).rejects.toThrow(
+        new UnauthorizedException('Unauthorized to perform this action'),
+      );
+    });
+  });
 });
