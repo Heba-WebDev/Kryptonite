@@ -3,7 +3,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { PrismaService } from 'src/prisma/prisma.service';
+import { PrismaService } from '../prisma/prisma.service';
 import { v2 as cloudinary } from 'cloudinary';
 import * as streamifier from 'streamifier';
 
@@ -55,7 +55,8 @@ export class FilesService {
       },
     });
 
-    if (!files) throw new NotFoundException('No images found');
+    if (!files || files.length === 0)
+      throw new NotFoundException('No images found');
 
     return { files };
   }
