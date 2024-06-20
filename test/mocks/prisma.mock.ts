@@ -8,4 +8,9 @@ export const prismaMock = {
     create: jest.fn(),
     findFirst: jest.fn(),
   },
+  files: {
+    create: jest.fn(),
+    findFirst: jest.fn(),
+    findMany: jest.fn(),
+  },
 };
