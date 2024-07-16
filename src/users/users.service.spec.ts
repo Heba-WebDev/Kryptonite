@@ -1,30 +1,53 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { Test, TestingModule } from '@nestjs/testing';
 import { UsersService } from './users.service';
-import { PrismaService } from '../prisma/prisma.service';
-import { prismaMock } from '../../test/mocks/prisma.mock';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { User } from '../entities/user.entity';
+import { OTP } from '../entities/otp.entity';
+import { Repository } from 'typeorm';
 import { validate } from 'class-validator';
 import { userMock } from '../../test/mocks/user.mock';
-import { BadRequestException, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  UnauthorizedException,
+} from '@nestjs/common';
 
 describe('UsersService', () => {
-  let userService: UsersService;
+  let service: UsersService;
+  let userRepository: Repository<User>;
+  let otpRepository: Repository<OTP>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UsersService,
         {
-          provide: PrismaService,
-          useValue: prismaMock,
+          provide: getRepositoryToken(User),
+          useValue: {
+            findOne: jest.fn(),
+            create: jest.fn(),
+            save: jest.fn(),
+          },
+        },
+        {
+          provide: getRepositoryToken(OTP),
+          useValue: {
+            findOne: jest.fn(),
+            create: jest.fn(),
+            save: jest.fn(),
+          },
         },
       ],
     }).compile();
 
-    userService = module.get<UsersService>(UsersService);
+    service = module.get<UsersService>(UsersService);
+    userRepository = module.get<Repository<User>>(getRepositoryToken(User));
+    otpRepository = module.get<Repository<OTP>>(getRepositoryToken(OTP));
   });
 
   it('should be defined', () => {
-    expect(userService).toBeDefined();
+    expect(service).toBeDefined();
   });
 
   describe('registering a user', () => {
@@ -37,21 +60,25 @@ describe('UsersService', () => {
     });
 
     it('should register a user', async () => {
-      const user = await userService.register(userMock);
-      jest.spyOn(prismaMock.user, 'create');
-      expect(prismaMock.user.create).toHaveBeenCalledTimes(1);
-      expect(user).toEqual('Registration succssfully completed');
+      jest.spyOn(userRepository, 'findOne').mockResolvedValue(null);
+      const result = await service.register({
+        email: 'example@example.com',
+      });
+
+      expect(userRepository.findOne).toHaveBeenCalled();
+      expect(result).toBeDefined();
+      expect(result).toEqual('Registration succssfully completed');
     });
 
     it('should not register a user if the eamil alreadye exits', async () => {
-      prismaMock.user.findFirst.mockResolvedValue(userMock);
-      await expect(userService.register(userMock)).rejects.toThrow(
-        new BadRequestException('Email already exsits'),
+      jest.spyOn(userRepository, 'findOne').mockResolvedValue(userMock);
+      await expect(service.register(userMock)).rejects.toThrow(
+        new ConflictException('Email already exsits'),
       );
     });
 
     it('should send a confirmation email to the user if the reginstration was succssful', async () => {
-      const sent_email = await userService.confirmation_email(userMock.email);
+      const sent_email = await service.confirmation_email(userMock.email);
       expect(sent_email).toBeUndefined();
     });
   });
@@ -66,22 +93,22 @@ describe('UsersService', () => {
     });
 
     it('should log in a user successfully', async () => {
-      prismaMock.user.findFirst.mockResolvedValue(userMock);
-      const result = await userService.login({ email: userMock.email });
+      jest.spyOn(userRepository, 'findOne').mockResolvedValue(userMock);
+      const result = await service.login({ email: userMock.email });
       expect(result).toBe('A six-digit code has been sent to your email');
     });
 
     it('should throw an error if user not found', async () => {
-      prismaMock.user.findFirst.mockResolvedValue(null);
-      await expect(
-        userService.login({ email: userMock.email }),
-      ).rejects.toThrow(new BadRequestException('No user found'));
+      jest.spyOn(userRepository, 'findOne').mockResolvedValue(null);
+      await expect(service.login({ email: userMock.email })).rejects.toThrow(
+        new BadRequestException('No user found'),
+      );
     });
   });
 
   describe('generate OTP code', () => {
     it('should return a 6-digit code', async () => {
-      const result = await userService.generate_otp(userMock.id.toString());
+      const result = await service.generate_otp(userMock);
       expect(typeof result).toBe('string');
       expect(result).toHaveLength(6);
       expect(typeof parseInt(result)).toBe('number');
@@ -89,9 +116,15 @@ describe('UsersService', () => {
   });
 
   describe('verify OTP code', () => {
+    const now = new Date();
     const user = {
+      id: userMock.id,
       email: userMock.email,
       code: '123456',
+      created_at: now,
+      expires_at: new Date(now.getTime() + 10 * 60 * 1000),
+      user: userMock,
+      setExpirationDate: jest.fn(),
     };
     const createdAt = new Date();
     beforeEach(async () => {
@@ -100,13 +133,9 @@ describe('UsersService', () => {
     });
 
     it('should validate code', async () => {
-      prismaMock.user.findFirst.mockResolvedValue(userMock);
-      prismaMock.otp.findFirst.mockResolvedValue({
-        id: userMock.id,
-        code: user.code,
-        expires_at: new Date(createdAt.getTime() + 10 * 60 * 1000),
-      });
-      const result = await userService.verify_otp({
+      jest.spyOn(userRepository, 'findOne').mockResolvedValue(userMock);
+      jest.spyOn(otpRepository, 'findOne').mockResolvedValue(user);
+      const result = await service.verify_otp({
         email: userMock.email,
         code: user.code,
       });
@@ -114,10 +143,10 @@ describe('UsersService', () => {
     });
 
     it('should invalidate code if it does not match the code in the db', async () => {
-      prismaMock.user.findFirst.mockResolvedValue(userMock);
-      prismaMock.otp.findFirst.mockResolvedValue(null);
+      jest.spyOn(userRepository, 'findOne').mockResolvedValue(userMock);
+      jest.spyOn(otpRepository, 'findOne').mockResolvedValue(null);
       await expect(
-        userService.verify_otp({
+        service.verify_otp({
           email: userMock.email,
           code: 'invalid-code',
         }),
@@ -127,15 +156,17 @@ describe('UsersService', () => {
     it('should throw BadRequestException for an expired OTP code', async () => {
       const otpMock = {
         id: userMock.id,
+        created_at: user.created_at,
         code: user.code,
         expires_at: new Date(createdAt.getTime() - 10 * 60 * 1000),
+        user: userMock,
+        setExpirationDate: jest.fn(),
       };
-
-      prismaMock.user.findFirst.mockResolvedValue(userMock);
-      prismaMock.otp.findFirst.mockResolvedValue(otpMock);
+      jest.spyOn(userRepository, 'findOne').mockResolvedValue(userMock);
+      jest.spyOn(otpRepository, 'findOne').mockResolvedValue(otpMock);
 
       await expect(
-        userService.verify_otp({
+        service.verify_otp({
           email: userMock.email,
           code: otpMock.code,
         }),
@@ -149,7 +180,7 @@ describe('UsersService', () => {
 
   describe('otp email', () => {
     it('should be defined and called', () => {
-      expect(userService.opt_email).toBeDefined();
+      expect(service.opt_email).toBeDefined();
     });
   });
 
@@ -160,10 +191,12 @@ describe('UsersService', () => {
         email: userMock.email,
         api_key: '',
         is_verified: true,
+        files: [],
+        otp: [],
       };
-      prismaMock.user.findFirst.mockResolvedValue(user);
+      jest.spyOn(userRepository, 'findOne').mockResolvedValue(user);
       const key = Buffer.from(`${user.email}${user.id}`).toString('base64');
-      const result = await userService.generate_api_key({ email: user.email });
+      const result = await service.generate_api_key({ email: user.email });
       expect(result).toEqual({
         api_key: key,
         message:
@@ -177,10 +210,12 @@ describe('UsersService', () => {
         email: userMock.email,
         api_key: '',
         is_verified: false,
+        files: [],
+        otp: [],
       };
-      prismaMock.user.findFirst.mockResolvedValue(user);
+      jest.spyOn(userRepository, 'findOne').mockResolvedValue(user);
       await expect(
-        userService.generate_api_key({
+        service.generate_api_key({
           email: userMock.email,
         }),
       ).rejects.toThrow(
@@ -194,10 +229,12 @@ describe('UsersService', () => {
         email: userMock.email,
         api_key: 'gxJxwfwXZgvd=1425gs',
         is_verified: true,
+        files: [],
+        otp: [],
       };
-      prismaMock.user.findFirst.mockResolvedValue(user);
+      jest.spyOn(userRepository, 'findOne').mockResolvedValue(user);
       await expect(
-        userService.generate_api_key({ email: user.email }),
+        service.generate_api_key({ email: user.email }),
       ).rejects.toThrow(
         new UnauthorizedException('Unauthorized to perform this action'),
       );
@@ -210,9 +247,9 @@ describe('UsersService', () => {
         api_key: 'gxJxwfwXZgvd=1425gs',
         is_verified: true,
       };
-      prismaMock.user.findFirst.mockResolvedValue(null);
+      jest.spyOn(userRepository, 'findOne').mockResolvedValue(null);
       await expect(
-        userService.generate_api_key({ email: user.email }),
+        service.generate_api_key({ email: user.email }),
       ).rejects.toThrow(
         new UnauthorizedException('Unauthorized to perform this action'),
       );
@@ -226,9 +263,11 @@ describe('UsersService', () => {
         email: userMock.email,
         api_key: 'xvsgwgw=ewgfwWavStwa?12f',
         is_verified: true,
+        files: [],
+        otp: [],
       };
-      prismaMock.user.findFirst.mockResolvedValue(user);
-      const result = await userService.delete_api_key({ email: user.email });
+      jest.spyOn(userRepository, 'findOne').mockResolvedValue(user);
+      const result = await service.delete_api_key({ email: user.email });
       expect(result).toEqual('Api key succssfully deleted');
     });
 
@@ -238,10 +277,12 @@ describe('UsersService', () => {
         email: userMock.email,
         api_key: '',
         is_verified: false,
+        files: [],
+        otp: [],
       };
-      prismaMock.user.findFirst.mockResolvedValue(user);
+      jest.spyOn(userRepository, 'findOne').mockResolvedValue(user);
       await expect(
-        userService.delete_api_key({
+        service.delete_api_key({
           email: userMock.email,
         }),
       ).rejects.toThrow(
@@ -256,9 +297,9 @@ describe('UsersService', () => {
         api_key: 'gxJxwfwXZgvd=1425gs',
         is_verified: true,
       };
-      prismaMock.user.findFirst.mockResolvedValue(null);
+      jest.spyOn(userRepository, 'findOne').mockResolvedValue(null);
       await expect(
-        userService.generate_api_key({ email: user.email }),
+        service.generate_api_key({ email: user.email }),
       ).rejects.toThrow(
         new UnauthorizedException('Unauthorized to perform this action'),
       );
