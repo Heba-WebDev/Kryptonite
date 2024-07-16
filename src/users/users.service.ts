@@ -1,73 +1,80 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
 import { createTransport } from 'nodemailer';
 import { EmailUserDto } from './dto/email.user.dto';
 import { VerifyOtpDto } from './dto/otp.user.dto';
+import { Repository } from 'typeorm';
+import { User } from '../entities/user.entity';
+import { OTP } from '../entities/otp.entity';
+import { InjectRepository } from '@nestjs/typeorm';
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+    @InjectRepository(OTP)
+    private readonly otpRepository: Repository<OTP>,
+  ) {}
 
   async register(registerDto: EmailUserDto) {
-    const user = await this.prisma.user.findFirst({
+    const user = await this.userRepository.findOne({
       where: {
         email: registerDto.email,
       },
     });
-    if (user) throw new BadRequestException('Email already exsits');
-    await this.prisma.user.create({
-      data: {
-        email: registerDto.email,
-      },
+    if (user) throw new ConflictException('Email already exsits');
+    const newUser = await this.userRepository.create({
+      email: registerDto.email,
     });
+    await this.userRepository.save(newUser);
     this.confirmation_email(registerDto.email);
     return 'Registration succssfully completed';
   }
 
   async login(loginDto: EmailUserDto) {
-    const user = await this.prisma.user.findFirst({
+    const user = await this.userRepository.findOne({
       where: {
         email: loginDto.email,
       },
     });
     if (!user) throw new BadRequestException('No user found');
-    const code = await this.generate_otp(user.id);
+    const code = await this.generate_otp(user);
     this.opt_email(loginDto.email, code);
     return 'A six-digit code has been sent to your email';
   }
 
-  async generate_otp(user_id: string) {
+  async generate_otp(user: User) {
     const min = 100000;
     const max = 999999;
     const randomCode = Math.floor(Math.random() * (max - min + 1)) + min;
     const createdAt = new Date();
     const expirationDate = new Date(createdAt.getTime() + 10 * 60 * 1000);
-    await this.prisma.otp.create({
-      data: {
-        user_id: user_id,
-        code: randomCode.toString(),
-        created_at: createdAt,
-        expires_at: expirationDate,
-      },
+    const otp = this.otpRepository.create({
+      user: user,
+      code: randomCode.toString(),
+      created_at: createdAt,
+      expires_at: expirationDate,
     });
+    await this.otpRepository.save(otp);
     return randomCode.toString();
   }
 
   async verify_otp(verifyOtpDto: VerifyOtpDto) {
-    const user = await this.prisma.user.findFirst({
+    const user = await this.userRepository.findOne({
       where: {
         email: verifyOtpDto.email,
       },
     });
     if (!user) throw new BadRequestException('No user found');
-    const code = await this.prisma.otp.findFirst({
+    const code = await this.otpRepository.findOne({
       where: {
-        user_id: user.id,
+        user: user,
         code: verifyOtpDto.code,
       },
     });
@@ -78,20 +85,14 @@ export class UsersService {
         'OTP code has expired. Please genrate a new code',
       );
     if (!user.is_verified) {
-      await this.prisma.user.update({
-        where: {
-          id: user.id,
-        },
-        data: {
-          is_verified: true,
-        },
-      });
+      user.is_verified = true;
+      await this.userRepository.save(user);
     }
     return 'User succssfully logged in';
   }
 
   async generate_api_key(email: EmailUserDto) {
-    const user = await this.prisma.user.findFirst({
+    const user = await this.userRepository.findOne({
       where: {
         email: email.email,
       },
@@ -99,14 +100,8 @@ export class UsersService {
     if (!user || !user.is_verified || user.api_key)
       throw new UnauthorizedException('Unauthorized to perform this action');
     const key = Buffer.from(`${email.email}${user.id}`).toString('base64');
-    await this.prisma.user.update({
-      where: {
-        id: user.id,
-      },
-      data: {
-        api_key: key,
-      },
-    });
+    user.api_key = key;
+    await this.userRepository.save(user);
     return {
       api_key: key,
       message:
@@ -115,21 +110,15 @@ export class UsersService {
   }
 
   async delete_api_key(email: EmailUserDto) {
-    const user = await this.prisma.user.findFirst({
+    const user = await this.userRepository.findOne({
       where: {
         email: email.email,
       },
     });
     if (!user || !user.api_key)
       throw new UnauthorizedException('Unauthorized to perform this action');
-    await this.prisma.user.update({
-      where: {
-        id: user.id,
-      },
-      data: {
-        api_key: '',
-      },
-    });
+    user.api_key = '';
+    await this.userRepository.save(user);
     return 'Api key succssfully deleted';
   }
 
