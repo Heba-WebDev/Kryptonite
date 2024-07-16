@@ -3,20 +3,26 @@ import { EmailUserDto } from './dto/email.user.dto';
 import { UsersService } from './users.service';
 import { VerifyOtpDto } from './dto/otp.user.dto';
 import { ApiTags } from '@nestjs/swagger';
+import { CommandBus } from '@nestjs/cqrs';
+import { RegisterUserCommand } from './commands/register-user.command';
+import { LoginUserCommand } from './commands/login-user.command';
 
 @ApiTags('users')
 @Controller('users')
 export class UsersController {
-  constructor(private readonly authService: UsersService) {}
+  constructor(
+    private readonly authService: UsersService,
+    private readonly commandBus: CommandBus,
+  ) {}
 
   @Post('/register')
   async register(@Body() registerDto: EmailUserDto) {
-    return this.authService.register(registerDto);
+    return this.commandBus.execute(new RegisterUserCommand(registerDto));
   }
 
   @Post('/login')
   async login(@Body() loginDto: EmailUserDto) {
-    return this.authService.login(loginDto);
+    return this.commandBus.execute(new LoginUserCommand(loginDto));
   }
 
   @Post('/verify-otp')
