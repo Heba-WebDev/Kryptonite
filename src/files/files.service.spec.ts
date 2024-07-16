@@ -5,9 +5,16 @@ import { prismaMock } from '../../test/mocks/prisma.mock';
 import { mockFile } from '../../test/mocks/file.mock';
 import { UnauthorizedException } from '@nestjs/common';
 import { userMock } from '../../test/mocks/user.mock';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { User } from '../entities/user.entity';
+import { OTP } from '../entities/otp.entity';
+import { File } from '../entities/file.entity';
+import { Repository } from 'typeorm';
 
 describe('FilesService', () => {
   let filesService: FilesService;
+  let userRepository: Repository<User>;
+  let fileRepository: Repository<File>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -17,10 +24,37 @@ describe('FilesService', () => {
           provide: PrismaService,
           useValue: prismaMock,
         },
+        {
+          provide: getRepositoryToken(User),
+          useValue: {
+            findOne: jest.fn(),
+            create: jest.fn(),
+            save: jest.fn(),
+          },
+        },
+        {
+          provide: getRepositoryToken(OTP),
+          useValue: {
+            findOne: jest.fn(),
+            create: jest.fn(),
+            save: jest.fn(),
+          },
+        },
+        {
+          provide: getRepositoryToken(File),
+          useValue: {
+            findOne: jest.fn(),
+            find: jest.fn(),
+            create: jest.fn(),
+            save: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
     filesService = module.get<FilesService>(FilesService);
+    userRepository = module.get<Repository<User>>(getRepositoryToken(User));
+    fileRepository = module.get<Repository<File>>(getRepositoryToken(File));
   });
 
   it('should be defined', () => {
@@ -29,7 +63,7 @@ describe('FilesService', () => {
 
   describe('upload a file', () => {
     it('should throw UnauthorizedException for an invalid user', async () => {
-      prismaMock.user.findFirst.mockResolvedValue(null);
+      jest.spyOn(userRepository, 'findOne').mockResolvedValue(null);
 
       await expect(
         filesService.upload('invalid-api-key', mockFile),
@@ -41,12 +75,12 @@ describe('FilesService', () => {
 
   describe('isValidApiKey', () => {
     it('should return true', async () => {
-      prismaMock.user.findFirst.mockReturnValue(userMock);
+      jest.spyOn(userRepository, 'findOne').mockResolvedValue(userMock);
       const result = await filesService.isValidKey(userMock.api_key);
       expect(result).toEqual(true);
     });
     it('should thorw unauthorized exception', async () => {
-      prismaMock.user.findFirst.mockReturnValue(null);
+      jest.spyOn(userRepository, 'findOne').mockResolvedValue(null);
       await expect(filesService.isValidKey('invalid-key')).rejects.toThrow(
         new UnauthorizedException('Unauthorized to perform this action'),
       );
@@ -55,20 +89,17 @@ describe('FilesService', () => {
 
   describe('find all files of a user', () => {
     it('should return all files', async () => {
-      const arrFiles = [
+      const arrFiles: File[] = [
         {
           id: '1',
           url: 'http://test.com/img1',
-          user_id: 'user1',
-        },
-        {
-          id: '2',
-          url: 'http://test.com/img2',
-          user_id: 'user1',
+          user: userMock,
         },
       ];
-      prismaMock.user.findFirst.mockResolvedValue(userMock);
-      prismaMock.files.findMany.mockResolvedValue(arrFiles);
+
+      jest.spyOn(userRepository, 'findOne').mockResolvedValue(userMock);
+      jest.spyOn(fileRepository, 'find').mockResolvedValue(arrFiles);
+
       const result = await filesService.allFiles(userMock.api_key);
       expect(result).toEqual({ files: arrFiles });
     });
